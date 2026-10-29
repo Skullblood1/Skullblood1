@@ -7,6 +7,7 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 /* Return codes for name validation */
@@ -25,7 +26,9 @@ struct Employee {
 };
 
 int fnEmployeeNameValid(const char acName[]);
-void fnReadLine(char acBuffer[], int iSize);
+int fnReadLine(char acBuffer[], int iSize);
+int fnFlushLine(void);
+void fnExitOnEof(void);
 void fnDisplayEmployee(const struct Employee *psEmp);
 
 int main(void)
@@ -38,7 +41,8 @@ int main(void)
     /* a) Accept the full name and validate it before anything else */
     do {
         printf("Enter employee's full name: ");
-        fnReadLine(sEmp.acName, MAX_NAME_LEN);
+        if (!fnReadLine(sEmp.acName, MAX_NAME_LEN))
+            fnExitOnEof();
 
         iStatus = fnEmployeeNameValid(sEmp.acName);
 
@@ -56,21 +60,23 @@ int main(void)
 
     /* Name is valid, now accept the remaining details */
     printf("Enter employee ID: ");
-    while (scanf("%d", &sEmp.iEmployeeId) != 1 || sEmp.iEmployeeId <= 0) {
-        while (getchar() != '\n')
-            ;
+    while ((iStatus = scanf("%d", &sEmp.iEmployeeId)) != 1
+           || sEmp.iEmployeeId <= 0) {
+        if (iStatus == EOF || !fnFlushLine())
+            fnExitOnEof();
         printf("Invalid ID. Enter a positive number: ");
     }
-    while (getchar() != '\n')
-        ;
+    if (!fnFlushLine())
+        fnExitOnEof();
 
     printf("Enter employee address: ");
-    fnReadLine(sEmp.acAddress, MAX_ADDRESS_LEN);
+    if (!fnReadLine(sEmp.acAddress, MAX_ADDRESS_LEN))
+        fnExitOnEof();
 
     printf("Enter employee salary: ");
-    while (scanf("%f", &sEmp.fSalary) != 1 || sEmp.fSalary < 0) {
-        while (getchar() != '\n')
-            ;
+    while ((iStatus = scanf("%f", &sEmp.fSalary)) != 1 || sEmp.fSalary < 0) {
+        if (iStatus == EOF || !fnFlushLine())
+            fnExitOnEof();
         printf("Invalid salary. Enter a non-negative amount: ");
     }
 
@@ -105,12 +111,15 @@ int fnEmployeeNameValid(const char acName[])
     return NAME_VALID;
 }
 
-/* Reads a line from stdin and strips the trailing newline */
-void fnReadLine(char acBuffer[], int iSize)
+/*
+ * Reads a line from stdin and strips the trailing newline.
+ * Returns 1 on success, 0 if end of input was reached.
+ */
+int fnReadLine(char acBuffer[], int iSize)
 {
     if (fgets(acBuffer, iSize, stdin) == NULL) {
         acBuffer[0] = '\0';
-        return;
+        return 0;
     }
 
     size_t uLen = strlen(acBuffer);
@@ -118,10 +127,30 @@ void fnReadLine(char acBuffer[], int iSize)
         acBuffer[uLen - 1] = '\0';
     } else {
         /* Input was longer than the buffer; discard the rest of the line */
-        int iCh;
-        while ((iCh = getchar()) != '\n' && iCh != EOF)
-            ;
+        fnFlushLine();
     }
+    return 1;
+}
+
+/*
+ * Discards the rest of the current input line.
+ * Returns 1 if a newline was found, 0 if end of input was reached.
+ */
+int fnFlushLine(void)
+{
+    int iCh;
+
+    while ((iCh = getchar()) != '\n') {
+        if (iCh == EOF)
+            return 0;
+    }
+    return 1;
+}
+
+void fnExitOnEof(void)
+{
+    printf("\nError: unexpected end of input.\n");
+    exit(EXIT_FAILURE);
 }
 
 void fnDisplayEmployee(const struct Employee *psEmp)
